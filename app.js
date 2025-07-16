@@ -374,7 +374,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    function renderTasks() {
+        function renderTasks() {
         if (tasks.length === 0) {
             emptyState.style.display = 'block';
         } else {
