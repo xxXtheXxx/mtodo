@@ -242,13 +242,13 @@ function setupEventListeners() {
         showArchivedTasks = !showArchivedTasks;
         archivedTaskList.classList.toggle('hidden', !showArchivedTasks);
         this.textContent = showArchivedTasks ? 'Hide' : 'Show';
-        
-        // Also toggle footer visibility
+    
+        // Also toggle footer visibility only if there are archived tasks
         const archivedTasksFooter = document.getElementById('archivedTasksFooter');
         if (archivedTasks.length > 0) {
             archivedTasksFooter.classList.toggle('hidden', !showArchivedTasks);
         }
-    });
+});
     
     // Delete all archived tasks
     deleteArchivedBtn.addEventListener('click', deleteAllArchivedTasks);
