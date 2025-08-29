@@ -242,6 +242,14 @@ function setupEventListeners() {
         showArchivedTasks = !showArchivedTasks;
         archivedTaskList.classList.toggle('hidden', !showArchivedTasks);
         this.textContent = showArchivedTasks ? 'Hide' : 'Show';
+        
+        // Also toggle footer visibility
+        const archivedTasksFooter = document.getElementById('archivedTasksFooter');
+        if (archivedTasks.length > 0 && showArchivedTasks) {
+            archivedTasksFooter.classList.remove('hidden');
+        } else {
+            archivedTasksFooter.classList.add('hidden');
+        }
     });
     
     // Delete all archived tasks
@@ -414,6 +422,15 @@ function getAllArchivedTasks() {
         archivedTasks = event.target.result || [];
         renderArchivedTasks();
         deleteArchivedBtn.disabled = archivedTasks.length === 0;
+        
+        // Show/hide footer based on whether there are archived tasks
+        const archivedTasksFooter = document.getElementById('archivedTasksFooter');
+        if (archivedTasks.length > 0 && showArchivedTasks) {
+            archivedTasksFooter.classList.remove('hidden');
+        } else {
+            archivedTasksFooter.classList.add('hidden');
+        }
+        
         backupToLocalStorage();
     };
 }
@@ -478,6 +495,10 @@ function archiveCompletedTasks() {
 function deleteAllArchivedTasks() {
     if (archivedTasks.length === 0) return;
     
+    if (!confirm('Are you sure you want to delete all archived tasks? This action cannot be undone.')) {
+        return;
+    }
+    
     const transaction = db.transaction(['archivedTasks'], 'readwrite');
     const objectStore = transaction.objectStore('archivedTasks');
     
@@ -520,11 +541,11 @@ function importTasks(newTasks, newArchivedTasks) {
 
 function exportTasks() {
     const tasksTransaction = db.transaction(['tasks'], 'readonly');
-    const tasksStore = tasksTransaction.objectStore('tasks');
+    const tasksStore = transaction.objectStore('tasks');
     const tasksRequest = tasksStore.getAll();
     
     const archiveTransaction = db.transaction(['archivedTasks'], 'readonly');
-    const archiveStore = archiveTransaction.objectStore('archivedTasks');
+    const archiveStore = transaction.objectStore('archivedTasks');
     const archiveRequest = archiveStore.getAll();
     
     Promise.all([
@@ -665,6 +686,14 @@ function renderArchivedTasks() {
         
         archivedTaskList.appendChild(taskElement);
     });
+    
+    // Update footer visibility
+    const archivedTasksFooter = document.getElementById('archivedTasksFooter');
+    if (archivedTasks.length > 0 && showArchivedTasks) {
+        archivedTasksFooter.classList.remove('hidden');
+    } else {
+        archivedTasksFooter.classList.add('hidden');
+    }
 }
 
 function updateTaskCount() {
