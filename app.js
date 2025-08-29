@@ -242,13 +242,15 @@ function setupEventListeners() {
         showArchivedTasks = !showArchivedTasks;
         archivedTaskList.classList.toggle('hidden', !showArchivedTasks);
         this.textContent = showArchivedTasks ? 'Hide' : 'Show';
-    
-        // Also toggle footer visibility only if there are archived tasks
+        
+        // Also toggle footer visibility
         const archivedTasksFooter = document.getElementById('archivedTasksFooter');
-        if (archivedTasks.length > 0) {
-            archivedTasksFooter.classList.toggle('hidden', !showArchivedTasks);
+        if (archivedTasks.length > 0 && showArchivedTasks) {
+            archivedTasksFooter.classList.remove('hidden');
+        } else {
+            archivedTasksFooter.classList.add('hidden');
         }
-});
+    });
     
     // Delete all archived tasks
     deleteArchivedBtn.addEventListener('click', deleteAllArchivedTasks);
@@ -423,7 +425,7 @@ function getAllArchivedTasks() {
         
         // Show/hide footer based on whether there are archived tasks
         const archivedTasksFooter = document.getElementById('archivedTasksFooter');
-        if (archivedTasks.length > 0) {
+        if (archivedTasks.length > 0 && showArchivedTasks) {
             archivedTasksFooter.classList.remove('hidden');
         } else {
             archivedTasksFooter.classList.add('hidden');
@@ -432,7 +434,6 @@ function getAllArchivedTasks() {
         backupToLocalStorage();
     };
 }
-
 
 function addTask() {
     const taskText = taskInput.value.trim();
@@ -540,11 +541,11 @@ function importTasks(newTasks, newArchivedTasks) {
 
 function exportTasks() {
     const tasksTransaction = db.transaction(['tasks'], 'readonly');
-    const tasksStore = transaction.objectStore('tasks');
+    const tasksStore = tasksTransaction.objectStore('tasks');
     const tasksRequest = tasksStore.getAll();
     
     const archiveTransaction = db.transaction(['archivedTasks'], 'readonly');
-    const archiveStore = transaction.objectStore('archivedTasks');
+    const archiveStore = archiveTransaction.objectStore('archivedTasks');
     const archiveRequest = archiveStore.getAll();
     
     Promise.all([
@@ -637,14 +638,10 @@ function renderTasks() {
 function renderArchivedTasks() {
     if (archivedTasks.length === 0) {
         emptyArchivedState.style.display = 'block';
-        // Hide footer when no archived tasks
         const archivedTasksFooter = document.getElementById('archivedTasksFooter');
         archivedTasksFooter.classList.add('hidden');
     } else {
         emptyArchivedState.style.display = 'none';
-        // Show footer when there are archived tasks
-        const archivedTasksFooter = document.getElementById('archivedTasksFooter');
-        archivedTasksFooter.classList.remove('hidden');
     }
     
     archivedTaskList.innerHTML = '';
@@ -691,8 +688,6 @@ function renderArchivedTasks() {
         
         archivedTaskList.appendChild(taskElement);
     });
-}
-
     
     // Update footer visibility
     const archivedTasksFooter = document.getElementById('archivedTasksFooter');
