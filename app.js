@@ -245,10 +245,8 @@ function setupEventListeners() {
         
         // Also toggle footer visibility
         const archivedTasksFooter = document.getElementById('archivedTasksFooter');
-        if (archivedTasks.length > 0 && showArchivedTasks) {
-            archivedTasksFooter.classList.remove('hidden');
-        } else {
-            archivedTasksFooter.classList.add('hidden');
+        if (archivedTasks.length > 0) {
+            archivedTasksFooter.classList.toggle('hidden', !showArchivedTasks);
         }
     });
     
@@ -425,7 +423,7 @@ function getAllArchivedTasks() {
         
         // Show/hide footer based on whether there are archived tasks
         const archivedTasksFooter = document.getElementById('archivedTasksFooter');
-        if (archivedTasks.length > 0 && showArchivedTasks) {
+        if (archivedTasks.length > 0) {
             archivedTasksFooter.classList.remove('hidden');
         } else {
             archivedTasksFooter.classList.add('hidden');
@@ -434,6 +432,7 @@ function getAllArchivedTasks() {
         backupToLocalStorage();
     };
 }
+
 
 function addTask() {
     const taskText = taskInput.value.trim();
@@ -638,8 +637,14 @@ function renderTasks() {
 function renderArchivedTasks() {
     if (archivedTasks.length === 0) {
         emptyArchivedState.style.display = 'block';
+        // Hide footer when no archived tasks
+        const archivedTasksFooter = document.getElementById('archivedTasksFooter');
+        archivedTasksFooter.classList.add('hidden');
     } else {
         emptyArchivedState.style.display = 'none';
+        // Show footer when there are archived tasks
+        const archivedTasksFooter = document.getElementById('archivedTasksFooter');
+        archivedTasksFooter.classList.remove('hidden');
     }
     
     archivedTaskList.innerHTML = '';
@@ -686,6 +691,8 @@ function renderArchivedTasks() {
         
         archivedTaskList.appendChild(taskElement);
     });
+}
+
     
     // Update footer visibility
     const archivedTasksFooter = document.getElementById('archivedTasksFooter');
