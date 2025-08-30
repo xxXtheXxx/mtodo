@@ -33,6 +33,19 @@
 </head>
 <body class="bg-gray-100 dark:bg-dark-800 min-h-screen transition-colors duration-200">
     <div class="container mx-auto px-4 py-8 max-w-md">
+        <!-- Undo Notification -->
+        <div id="undoNotification" class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-3 rounded-lg shadow-lg z-50 hidden transition-opacity duration-300">
+            <div class="flex items-center">
+                <span class="mr-3">Task deleted</span>
+                <button id="undoDeleteBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-md text-sm mr-2">
+                    Undo
+                </button>
+                <button id="closeNotificationBtn" class="text-gray-300 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
         <!-- Header with dark mode toggle -->
         <header class="mb-8 flex justify-between items-center">
             <div>

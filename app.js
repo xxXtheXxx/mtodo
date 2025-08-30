@@ -7,6 +7,8 @@ let db;
 let tasks = [];
 let archivedTasks = [];
 let selectedPriority = 'medium';
+let recentlyDeletedTask = null;
+let undoTimeoutId = null;
 
 // DOM Elements
 const taskInput = document.getElementById('taskInput');
@@ -22,6 +24,9 @@ const toggleArchivedTasksBtn = document.getElementById('toggleArchivedTasksBtn')
 const deleteArchivedBtn = document.getElementById('deleteArchivedBtn');
 const importFile = document.getElementById('importFile');
 const exportBtn = document.getElementById('exportBtn');
+const undoNotification = document.getElementById('undoNotification');
+const undoDeleteBtn = document.getElementById('undoDeleteBtn');
+const closeNotificationBtn = document.getElementById('closeNotificationBtn');
 
 let showArchivedTasks = false;
 
@@ -210,6 +215,53 @@ function tryRestoreFromBackup() {
     }
 }
 
+// Undo functionality
+function showUndoNotification() {
+    // Clear any existing timeout
+    if (undoTimeoutId) {
+        clearTimeout(undoTimeoutId);
+    }
+    
+    // Show the notification
+    undoNotification.classList.remove('hidden');
+    undoNotification.classList.add('flex');
+    
+    // Set a timeout to automatically hide the notification
+    undoTimeoutId = setTimeout(() => {
+        hideUndoNotification();
+        recentlyDeletedTask = null;
+    }, 5000);
+}
+
+function hideUndoNotification() {
+    undoNotification.classList.add('hidden');
+    undoNotification.classList.remove('flex');
+    
+    if (undoTimeoutId) {
+        clearTimeout(undoTimeoutId);
+        undoTimeoutId = null;
+    }
+}
+
+function undoDelete() {
+    if (!recentlyDeletedTask) return;
+    
+    const transaction = db.transaction(['tasks'], 'readwrite');
+    const objectStore = transaction.objectStore('tasks');
+    const request = objectStore.add(recentlyDeletedTask);
+    
+    request.onsuccess = function() {
+        recentlyDeletedTask = null;
+        hideUndoNotification();
+        getAllTasks();
+    };
+    
+    request.onerror = function() {
+        console.error("Failed to undo delete");
+        hideUndoNotification();
+    };
+}
+
 // Main initialization
 document.addEventListener('DOMContentLoaded', async function() {
     // Check for saved dark mode preference
@@ -324,6 +376,10 @@ function setupEventListeners() {
     
     exportBtn.addEventListener('click', exportTasks);
     
+    // Undo functionality
+    undoDeleteBtn.addEventListener('click', undoDelete);
+    closeNotificationBtn.addEventListener('click', hideUndoNotification);
+    
     // Event delegation for dynamic elements
     taskList.addEventListener('click', function(e) {
         const taskElement = e.target.closest('[data-id]');
@@ -346,12 +402,16 @@ function setupEventListeners() {
         }
         
         if (e.target.closest('.delete-btn')) {
+            // Store the task for possible undo
+            recentlyDeletedTask = task;
+            
             const transaction = db.transaction(['tasks'], 'readwrite');
             const objectStore = transaction.objectStore('tasks');
             const request = objectStore.delete(taskId);
             
             request.onsuccess = function() {
                 getAllTasks();
+                showUndoNotification();
             };
         }
     });
