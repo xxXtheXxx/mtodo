@@ -10,6 +10,7 @@ let selectedPriority = 'medium';
 let recentlyDeletedTask = null;
 let undoTimeoutId = null;
 let currentlyEditingTask = null;
+let importErrorTimeoutId = null;
 
 // DOM Elements
 const taskInput = document.getElementById('taskInput');
@@ -33,6 +34,9 @@ const editTaskInput = document.getElementById('editTaskInput');
 const closeEditModalBtn = document.getElementById('closeEditModalBtn');
 const cancelEditBtn = document.getElementById('cancelEditBtn');
 const saveEditBtn = document.getElementById('saveEditBtn');
+const importErrorNotification = document.getElementById('importErrorNotification');
+const importErrorText = document.getElementById('importErrorText');
+const closeImportErrorBtn = document.getElementById('closeImportErrorBtn');
 
 let showArchivedTasks = false;
 
@@ -268,6 +272,71 @@ function undoDelete() {
     };
 }
 
+// Import error notification
+function showImportError(message) {
+    // Clear any existing timeout
+    if (importErrorTimeoutId) {
+        clearTimeout(importErrorTimeoutId);
+    }
+    
+    // Set error message
+    importErrorText.textContent = message || 'Invalid import file format';
+    
+    // Show the notification
+    importErrorNotification.classList.remove('hidden');
+    importErrorNotification.classList.add('flex');
+    
+    // Set a timeout to automatically hide the notification
+    importErrorTimeoutId = setTimeout(() => {
+        hideImportError();
+    }, 5000);
+}
+
+function hideImportError() {
+    importErrorNotification.classList.add('hidden');
+    importErrorNotification.classList.remove('flex');
+    
+    if (importErrorTimeoutId) {
+        clearTimeout(importErrorTimeoutId);
+        importErrorTimeoutId = null;
+    }
+}
+
+// Data validation functions
+function isValidTask(task) {
+    // Basic validation
+    if (!task || typeof task !== 'object') return false;
+    
+    // Check required fields
+    if (typeof task.id !== 'number' || task.id <= 0) return false;
+    if (typeof task.text !== 'string' || task.text.trim() === '') return false;
+    if (typeof task.completed !== 'boolean') return false;
+    if (typeof task.createdAt !== 'string' || isNaN(Date.parse(task.createdAt))) return false;
+    if (!['high', 'medium', 'low'].includes(task.priority)) return false;
+    
+    // Check optional fields
+    if (task.category && typeof task.category !== 'string') return false;
+    if (task.archivedAt && (typeof task.archivedAt !== 'string' || isNaN(Date.parse(task.archivedAt)))) return false;
+    
+    // Check for unexpected properties
+    const allowedProperties = ['id', 'text', 'completed', 'createdAt', 'priority', 'category', 'archivedAt'];
+    const taskProperties = Object.keys(task);
+    return taskProperties.every(prop => allowedProperties.includes(prop));
+}
+
+function isValidImportData(data) {
+    // Basic validation
+    if (!data || typeof data !== 'object') return false;
+    
+    // Check if data has tasks and archivedTasks arrays
+    if (!Array.isArray(data.tasks) || !Array.isArray(data.archivedTasks)) return false;
+    
+    // Validate all tasks
+    const allTasksValid = data.tasks.every(isValidTask) && data.archivedTasks.every(isValidTask);
+    
+    return allTasksValid;
+}
+
 // Task editing functionality
 function openEditModal(task) {
     currentlyEditingTask = task;
@@ -461,21 +530,37 @@ function setupEventListeners() {
         const file = e.target.files[0];
         if (!file) return;
         
+        // Check file size (max 1MB)
+        if (file.size > 1024 * 1024) {
+            showImportError('File too large. Maximum size is 1MB.');
+            return;
+        }
+        
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
+                // Parse the JSON file
                 const data = JSON.parse(e.target.result);
-                if (!data.tasks || !data.archivedTasks) {
-                    throw new Error("Invalid file format");
+                
+                // Validate the imported data
+                if (!isValidImportData(data)) {
+                    showImportError('Invalid file format. Please use a valid export file.');
+                    return;
                 }
                 
                 if (confirm(`Import ${data.tasks.length} active tasks and ${data.archivedTasks.length} archived tasks? This will replace your current tasks.`)) {
                     importTasks(data.tasks, data.archivedTasks);
                 }
             } catch (error) {
-                alert("Error importing tasks: " + error.message);
+                console.error('Import error:', error);
+                showImportError('Error parsing file. Please use a valid JSON file.');
             }
         };
+        
+        reader.onerror = function() {
+            showImportError('Error reading file. Please try again.');
+        };
+        
         reader.readAsText(file);
     });
     
@@ -484,6 +569,9 @@ function setupEventListeners() {
     // Undo functionality
     undoDeleteBtn.addEventListener('click', undoDelete);
     closeNotificationBtn.addEventListener('click', hideUndoNotification);
+    
+    // Import error functionality
+    closeImportErrorBtn.addEventListener('click', hideImportError);
     
     // Edit modal functionality
     closeEditModalBtn.addEventListener('click', closeEditModal);
@@ -716,15 +804,22 @@ function importTasks(newTasks, newArchivedTasks) {
     const archiveTransaction = db.transaction(['archivedTasks'], 'readwrite');
     const archiveStore = archiveTransaction.objectStore('archivedTasks');
     
+    // Clear existing data
     tasksStore.clear();
     archiveStore.clear();
     
+    // Add new tasks with validation
     newTasks.forEach(task => {
-        tasksStore.add(task);
+        if (isValidTask(task)) {
+            tasksStore.add(task);
+        }
     });
     
+    // Add new archived tasks with validation
     newArchivedTasks.forEach(task => {
-        archiveStore.add(task);
+        if (isValidTask(task)) {
+            archiveStore.add(task);
+        }
     });
     
     tasksTransaction.oncomplete = function() {
