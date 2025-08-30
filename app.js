@@ -9,6 +9,7 @@ let archivedTasks = [];
 let selectedPriority = 'medium';
 let recentlyDeletedTask = null;
 let undoTimeoutId = null;
+let currentlyEditingTask = null;
 
 // DOM Elements
 const taskInput = document.getElementById('taskInput');
@@ -27,6 +28,11 @@ const exportBtn = document.getElementById('exportBtn');
 const undoNotification = document.getElementById('undoNotification');
 const undoDeleteBtn = document.getElementById('undoDeleteBtn');
 const closeNotificationBtn = document.getElementById('closeNotificationBtn');
+const editTaskModal = document.getElementById('editTaskModal');
+const editTaskInput = document.getElementById('editTaskInput');
+const closeEditModalBtn = document.getElementById('closeEditModalBtn');
+const cancelEditBtn = document.getElementById('cancelEditBtn');
+const saveEditBtn = document.getElementById('saveEditBtn');
 
 let showArchivedTasks = false;
 
@@ -262,6 +268,77 @@ function undoDelete() {
     };
 }
 
+// Task editing functionality
+function openEditModal(task) {
+    currentlyEditingTask = task;
+    editTaskInput.value = task.text;
+    
+    // Set the priority buttons
+    document.querySelectorAll('.edit-priority-btn').forEach(btn => {
+        btn.classList.remove(
+            'bg-red-500', 'text-white', 'dark:bg-red-600',
+            'bg-yellow-500', 'dark:bg-yellow-600',
+            'bg-green-500', 'dark:bg-green-600'
+        );
+        btn.classList.add(
+            'bg-white', 'dark:bg-dark-800'
+        );
+        
+        const isDarkMode = document.documentElement.classList.contains('dark');
+        btn.classList.toggle('text-white', isDarkMode);
+        btn.classList.toggle('text-black', !isDarkMode);
+        
+        if (btn.dataset.priority === task.priority) {
+            if (btn.dataset.priority === 'high') {
+                btn.classList.add('bg-red-500', 'dark:bg-red-600', 'text-white');
+            } else if (btn.dataset.priority === 'medium') {
+                btn.classList.add('bg-yellow-500', 'dark:bg-yellow-600', 'text-white');
+            } else {
+                btn.classList.add('bg-green-500', 'dark:bg-green-600', 'text-white');
+            }
+        }
+    });
+    
+    editTaskModal.classList.remove('hidden');
+    editTaskInput.focus();
+}
+
+function closeEditModal() {
+    editTaskModal.classList.add('hidden');
+    currentlyEditingTask = null;
+}
+
+function saveTaskEdit() {
+    if (!currentlyEditingTask) return;
+    
+    const newText = editTaskInput.value.trim();
+    if (newText === '') return;
+    
+    // Get selected priority from edit modal
+    const selectedPriorityBtn = document.querySelector('.edit-priority-btn.bg-red-500, .edit-priority-btn.bg-yellow-500, .edit-priority-btn.bg-green-500');
+    const newPriority = selectedPriorityBtn ? selectedPriorityBtn.dataset.priority : currentlyEditingTask.priority;
+    
+    const updatedTask = {
+        ...currentlyEditingTask,
+        text: newText,
+        priority: newPriority
+    };
+    
+    const transaction = db.transaction(['tasks'], 'readwrite');
+    const objectStore = transaction.objectStore('tasks');
+    const request = objectStore.put(updatedTask);
+    
+    request.onsuccess = function() {
+        closeEditModal();
+        getAllTasks();
+    };
+    
+    request.onerror = function() {
+        console.error("Failed to update task");
+        alert("Failed to update task. Please try again.");
+    };
+}
+
 // Main initialization
 document.addEventListener('DOMContentLoaded', async function() {
     // Check for saved dark mode preference
@@ -337,7 +414,35 @@ function setupEventListeners() {
         });
     });
     
-    // Set medium as default selected
+    // Edit modal priority buttons
+    document.querySelectorAll('.edit-priority-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.edit-priority-btn').forEach(b => {
+                b.classList.remove(
+                    'bg-red-500', 'text-white', 'dark:bg-red-600',
+                    'bg-yellow-500', 'dark:bg-yellow-600',
+                    'bg-green-500', 'dark:bg-green-600'
+                );
+                b.classList.add(
+                    'bg-white', 'dark:bg-dark-800'
+                );
+                
+                const isDarkMode = document.documentElement.classList.contains('dark');
+                b.classList.toggle('text-white', isDarkMode);
+                b.classList.toggle('text-black', !isDarkMode);
+            });
+            
+            if (this.dataset.priority === 'high') {
+                this.classList.add('bg-red-500', 'dark:bg-red-600', 'text-white');
+            } else if (this.dataset.priority === 'medium') {
+                this.classList.add('bg-yellow-500', 'dark:bg-yellow-600', 'text-white');
+            } else {
+                this.classList.add('bg-green-500', 'dark:bg-green-600', 'text-white');
+            }
+        });
+    });
+    
+    // Set medium as default selected for add task
     document.querySelector('.priority-btn[data-priority="medium"]').click();
     
     // Add task
@@ -380,6 +485,25 @@ function setupEventListeners() {
     undoDeleteBtn.addEventListener('click', undoDelete);
     closeNotificationBtn.addEventListener('click', hideUndoNotification);
     
+    // Edit modal functionality
+    closeEditModalBtn.addEventListener('click', closeEditModal);
+    cancelEditBtn.addEventListener('click', closeEditModal);
+    saveEditBtn.addEventListener('click', saveTaskEdit);
+    
+    // Close modal when clicking outside
+    editTaskModal.addEventListener('click', function(e) {
+        if (e.target === editTaskModal) {
+            closeEditModal();
+        }
+    });
+    
+    // Allow Enter key to save in edit modal
+    editTaskInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            saveTaskEdit();
+        }
+    });
+    
     // Event delegation for dynamic elements
     taskList.addEventListener('click', function(e) {
         const taskElement = e.target.closest('[data-id]');
@@ -413,6 +537,10 @@ function setupEventListeners() {
                 getAllTasks();
                 showUndoNotification();
             };
+        }
+        
+        if (e.target.closest('.edit-btn')) {
+            openEditModal(task);
         }
     });
     
@@ -450,6 +578,16 @@ function setupEventListeners() {
 function updatePriorityButtonTextColors() {
     const isDarkMode = document.documentElement.classList.contains('dark');
     document.querySelectorAll('.priority-btn').forEach(btn => {
+        if (btn.classList.contains('bg-red-500') || btn.classList.contains('bg-yellow-500') || btn.classList.contains('bg-green-500')) {
+            btn.classList.add('text-white');
+            btn.classList.remove('text-black');
+        } else {
+            btn.classList.toggle('text-white', isDarkMode);
+            btn.classList.toggle('text-black', !isDarkMode);
+        }
+    });
+    
+    document.querySelectorAll('.edit-priority-btn').forEach(btn => {
         if (btn.classList.contains('bg-red-500') || btn.classList.contains('bg-yellow-500') || btn.classList.contains('bg-green-500')) {
             btn.classList.add('text-white');
             btn.classList.remove('text-black');
@@ -684,9 +822,14 @@ function renderTasks() {
                     <span class="text-xs text-gray-500 dark:text-dark-400">${new Date(task.createdAt).toLocaleDateString()}</span>
                 </div>
             </div>
-            <button class="delete-btn text-gray-400 hover:text-red-500 dark:hover:text-red-400 flex-shrink-0">
-                <i class="fas fa-trash"></i>
-            </button>
+            <div class="flex flex-shrink-0 space-x-2">
+                <button class="edit-btn text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-400">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="delete-btn text-gray-400 hover:text-red-500 dark:hover:text-red-400">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
         `;
         
         taskList.appendChild(taskElement);
